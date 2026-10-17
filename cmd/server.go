@@ -183,40 +183,44 @@ func getSelectedServer(cmd *cli.Command, cfg *config.Config) (string, error) {
 // prompt the user to select one.
 func serverFromInput(cmd *cli.Command, cf *config.Config) (string, error) {
 	servers := getServers(cf)
+	if len(servers) == 0 {
+		return "", errors.New("no servers found in the local config")
+	}
 
 	if err := displayListServers(cmd, servers); err != nil {
 		return "", err
 	}
 
-	fmt.Print("Select a Server:")
-	reader := bufio.NewReader(os.Stdin)
+	selection, err := readServerSelection(os.Stdin, os.Stdout, len(servers))
+	if err != nil {
+		return "", err
+	}
+	return servers[selection].Name, nil
+}
 
-	errMessage := fmt.Sprintf("Invalid input, enter a number between 1 and %v: ", len(servers))
-	var selection int
+// readServerSelection prompts until the user enters a number between 1 and
+// count, and returns it as a zero-based index. Empty or invalid input prints
+// an error and asks again.
+func readServerSelection(in io.Reader, out io.Writer, count int) (int, error) {
+	fmt.Fprint(out, "Select a Server: ")
+	reader := bufio.NewReader(in)
+
+	errMessage := fmt.Sprintf("Invalid input, enter a number between 1 and %v: ", count)
 
 	for {
 		input, err := reader.ReadString('\n')
+		i, convErr := strconv.Atoi(strings.TrimSpace(input))
+		if convErr == nil && i >= 1 && i <= count {
+			return i - 1, nil
+		}
+		if errors.Is(err, io.EOF) {
+			return 0, errors.New("no server selected")
+		}
 		if err != nil {
-			return "", err
+			return 0, err
 		}
-		input = strings.TrimSpace(input)
-
-		if input != "" {
-			i, err := strconv.Atoi(input)
-			if err != nil {
-				fmt.Print(errMessage)
-				continue
-			}
-			if i <= len(servers) && i != 0 {
-				selection = i - 1
-				break
-			}
-			fmt.Print(errMessage)
-			continue
-		}
+		fmt.Fprint(out, errMessage)
 	}
-
-	return servers[selection].Name, nil
 }
 
 // displayListServers displays the list of rancher servers

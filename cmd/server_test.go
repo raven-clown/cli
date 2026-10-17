@@ -3,10 +3,12 @@ package cmd
 import (
 	"bytes"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/rancher/cli/config"
 	"github.com/stretchr/testify/assert"
+	"github.com/urfave/cli/v3"
 )
 
 func TestServerCurrentCommand(t *testing.T) {
@@ -273,4 +275,68 @@ func newTestConfig() *config.Config {
 			"server3": {URL: "https://myserver-3.com"},
 		},
 	}
+}
+
+func TestReadServerSelection(t *testing.T) {
+	tt := []struct {
+		name          string
+		input         string
+		expectedIndex int
+		expectedErr   string
+		retries       int
+	}{
+		{
+			name:          "valid number",
+			input:         "2\n",
+			expectedIndex: 1,
+		},
+		{
+			name:          "valid number without trailing newline",
+			input:         "3",
+			expectedIndex: 2,
+		},
+		{
+			name:          "empty input asks again",
+			input:         "\n1\n",
+			expectedIndex: 0,
+			retries:       1,
+		},
+		{
+			name:          "zero, negative, too large, and text ask again",
+			input:         "0\n-1\n4\nabc\n2\n",
+			expectedIndex: 1,
+			retries:       4,
+		},
+		{
+			name:        "end of input without a selection",
+			input:       "\n",
+			expectedErr: "no server selected",
+			retries:     1,
+		},
+		{
+			name:        "no input",
+			input:       "",
+			expectedErr: "no server selected",
+		},
+	}
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			out := &bytes.Buffer{}
+			index, err := readServerSelection(strings.NewReader(tc.input), out, 3)
+			if tc.expectedErr != "" {
+				assert.EqualError(t, err, tc.expectedErr)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expectedIndex, index)
+			}
+			assert.Equal(t, tc.retries, strings.Count(out.String(), "Invalid input, enter a number between 1 and 3"))
+		})
+	}
+}
+
+func TestServerFromInputNoServers(t *testing.T) {
+	_, err := serverFromInput(&cli.Command{}, &config.Config{})
+	assert.EqualError(t, err, "no servers found in the local config")
 }
