@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"net/url"
 	"testing"
@@ -94,4 +95,29 @@ func TestListClusterMembers(t *testing.T) {
 
 	got := parseTabWriterOutput(&out)
 	assert.Equal(t, want, got)
+}
+
+// TestClusterAddNodeManagementFlag checks that the deprecated --management flag
+// is left out of the help but still accepted, so existing scripts keep working.
+func TestClusterAddNodeManagementFlag(t *testing.T) {
+	out := &bytes.Buffer{}
+	root := &cli.Command{
+		Name:     "rancher",
+		Writer:   out,
+		Commands: []*cli.Command{ClusterCommand()},
+	}
+	require.NoError(t, root.Run(t.Context(), []string{"rancher", "clusters", "add-node", "--help"}))
+	assert.Contains(t, out.String(), "--controlplane")
+	assert.NotContains(t, out.String(), "--management")
+
+	var addNode *cli.Command
+	for _, c := range root.Commands[0].Commands {
+		if c.Name == "add-node" {
+			addNode = c
+		}
+	}
+	require.NotNil(t, addNode)
+	addNode.Action = func(context.Context, *cli.Command) error { return nil }
+	require.NoError(t, root.Run(t.Context(), []string{"rancher", "clusters", "add-node", "--management", "c-1234"}))
+	assert.True(t, addNode.Bool("management"))
 }

@@ -96,8 +96,9 @@ func ClusterCommand() *cli.Command {
 						Usage: "Use node for etcd",
 					},
 					&cli.BoolFlag{
-						Name:  "management",
-						Usage: "Use node for management (DEPRECATED, use controlplane instead)",
+						Name:   "management",
+						Usage:  "Use node for management (DEPRECATED, use controlplane instead)",
+						Hidden: true,
 					},
 					&cli.BoolFlag{
 						Name:  "controlplane",
