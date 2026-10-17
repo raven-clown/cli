@@ -246,7 +246,10 @@ func searchForMember(cmd *cli.Command, c *cliclient.MasterClient, name string) (
 	for _, person := range results.Data {
 		names = append(names, person.Name+fmt.Sprintf(" (%s)", person.PrincipalType))
 	}
-	selection := selectFromList("Multiple results found:", names)
+	selection, err := selectFromList(os.Stdin, os.Stdout, "Multiple results found:", names)
+	if err != nil {
+		return nil, err
+	}
 
 	return &results.Data[selection], nil
 }
@@ -498,27 +501,33 @@ func printTemplate(out io.Writer, templateContent string, obj interface{}) error
 	return tmpl.Execute(out, obj)
 }
 
-func selectFromList(header string, choices []string) int {
+// selectFromList prints the numbered choices and reads a selection from in
+// until it is valid. It returns the zero-based index of the choice, or an
+// error when in ends before a valid selection is made.
+func selectFromList(in io.Reader, out io.Writer, header string, choices []string) (int, error) {
 	if header != "" {
-		fmt.Println(header)
+		fmt.Fprintln(out, header)
 	}
 
-	reader := bufio.NewReader(os.Stdin)
-	selected := -1
-	for selected <= 0 || selected > len(choices) {
+	reader := bufio.NewReader(in)
+	for {
 		for i, choice := range choices {
-			fmt.Printf("[%d] %s\n", i+1, choice)
+			fmt.Fprintf(out, "[%d] %s\n", i+1, choice)
 		}
-		fmt.Print("Select: ")
+		fmt.Fprint(out, "Select: ")
 
-		text, _ := reader.ReadString('\n')
-		text = strings.TrimSpace(text)
-		num, err := strconv.Atoi(text)
-		if err == nil {
-			selected = num
+		text, err := reader.ReadString('\n')
+		num, convErr := strconv.Atoi(strings.TrimSpace(text))
+		if convErr == nil && num >= 1 && num <= len(choices) {
+			return num - 1, nil
+		}
+		if errors.Is(err, io.EOF) {
+			return 0, errors.New("no selection made")
+		}
+		if err != nil {
+			return 0, err
 		}
 	}
-	return selected - 1
 }
 
 func processExitCode(err error) error {

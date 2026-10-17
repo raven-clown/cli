@@ -3,8 +3,10 @@ package cmd
 import (
 	"crypto/tls"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -251,4 +253,68 @@ func TestNewHTTPClient(t *testing.T) {
 		require.NoError(t, err)
 		require.Nil(t, proxyURL)
 	})
+}
+
+func TestSelectFromList(t *testing.T) {
+	choices := []string{"alice (user)", "alice (group)"}
+
+	tt := []struct {
+		name          string
+		input         string
+		expectedIndex int
+		expectedErr   string
+	}{
+		{
+			name:          "valid selection",
+			input:         "2\n",
+			expectedIndex: 1,
+		},
+		{
+			name:          "invalid input asks again",
+			input:         "\n0\n3\nbob\n1\n",
+			expectedIndex: 0,
+		},
+		{
+			name:          "valid selection without trailing newline",
+			input:         "2",
+			expectedIndex: 1,
+		},
+		{
+			name:        "closed input returns an error",
+			input:       "",
+			expectedErr: "no selection made",
+		},
+		{
+			name:        "input ends without a valid selection",
+			input:       "5\n",
+			expectedErr: "no selection made",
+		},
+	}
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			type result struct {
+				index int
+				err   error
+			}
+			done := make(chan result, 1)
+			go func() {
+				index, err := selectFromList(strings.NewReader(tc.input), io.Discard, "Multiple results found:", choices)
+				done <- result{index, err}
+			}()
+
+			select {
+			case r := <-done:
+				if tc.expectedErr != "" {
+					assert.EqualError(t, r.err, tc.expectedErr)
+				} else {
+					assert.NoError(t, r.err)
+					assert.Equal(t, tc.expectedIndex, r.index)
+				}
+			case <-time.After(5 * time.Second):
+				t.Fatal("selectFromList did not return")
+			}
+		})
+	}
 }
