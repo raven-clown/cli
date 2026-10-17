@@ -8,7 +8,6 @@ import (
 
 	"github.com/rancher/cli/config"
 	"github.com/stretchr/testify/assert"
-	"github.com/urfave/cli/v3"
 )
 
 func TestServerCurrentCommand(t *testing.T) {
@@ -334,9 +333,4 @@ func TestReadServerSelection(t *testing.T) {
 			assert.Equal(t, tc.retries, strings.Count(out.String(), "Invalid input, enter a number between 1 and 3"))
 		})
 	}
-}
-
-func TestServerFromInputNoServers(t *testing.T) {
-	_, err := serverFromInput(&cli.Command{}, &config.Config{})
-	assert.EqualError(t, err, "no servers found in the local config")
 }

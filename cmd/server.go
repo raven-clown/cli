@@ -183,9 +183,6 @@ func getSelectedServer(cmd *cli.Command, cfg *config.Config) (string, error) {
 // prompt the user to select one.
 func serverFromInput(cmd *cli.Command, cf *config.Config) (string, error) {
 	servers := getServers(cf)
-	if len(servers) == 0 {
-		return "", errors.New("no servers found in the local config")
-	}
 
 	if err := displayListServers(cmd, servers); err != nil {
 		return "", err
